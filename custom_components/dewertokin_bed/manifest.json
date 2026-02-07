@@ -1,0 +1,17 @@
+{
+  "domain": "dewertokin_bed",
+  "name": "DewertOkin Bed",
+  "codeowners": ["@sethcalkins"],
+  "config_flow": true,
+  "dependencies": ["bluetooth_adapters"],
+  "documentation": "https://github.com/sethcalkins/ha-dewertokin-bed",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "bluetooth": [
+    {
+      "local_name": "Star*"
+    }
+  ],
+  "requirements": ["bleak-retry-connector>=3.5.0"],
+  "version": "1.0.0"
+}

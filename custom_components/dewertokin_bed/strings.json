@@ -1,0 +1,23 @@
+{
+  "config": {
+    "flow_title": "DewertOkin Bed ({name})",
+    "step": {
+      "bluetooth_confirm": {
+        "title": "DewertOkin Bed",
+        "description": "Found DewertOkin bed: {name} ({address})"
+      },
+      "user": {
+        "title": "DewertOkin Bed",
+        "description": "Enter the Bluetooth address of your DewertOkin bed. The bed advertises with a name starting with 'Star'.",
+        "data": {
+          "address": "Bluetooth address"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "This bed is already configured.",
+      "no_devices_found": "No DewertOkin beds found nearby.",
+      "cannot_connect": "Could not connect to the bed."
+    }
+  }
+}
