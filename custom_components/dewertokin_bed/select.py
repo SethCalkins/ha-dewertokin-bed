@@ -16,6 +16,13 @@ from .const import (
 )
 from .coordinator import DewertOkinCoordinator
 
+MASSAGE_DISPLAY_NAMES = {
+    "off": "Off",
+    "wave_1": "Wave 1",
+    "wave_2": "Wave 2",
+    "wave_3": "Wave 3",
+}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -28,10 +35,10 @@ async def async_setup_entry(
 
 
 class DewertOkinMassageModeSelect(SelectEntity):
-    """Select entity for massage mode (Off/Steady/Pulse/Wave)."""
+    """Select entity for massage mode (Off/Wave 1/Wave 2/Wave 3)."""
 
     _attr_has_entity_name = True
-    _attr_options = [name.title() for name in MASSAGE_MODE_NAMES]
+    _attr_options = [MASSAGE_DISPLAY_NAMES[k] for k in MASSAGE_MODE_NAMES]
     _attr_current_option = "Off"
 
     def __init__(
@@ -47,19 +54,23 @@ class DewertOkinMassageModeSelect(SelectEntity):
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": entry.title,
             "manufacturer": "DewertOkin",
-            "model": "FP2901",
+            "model": "BOX25 Star",
         }
 
     async def async_select_option(self, option: str) -> None:
         """Set massage mode."""
-        key = option.lower()
+        # Find the key matching this display name
+        key = next(
+            (k for k, v in MASSAGE_DISPLAY_NAMES.items() if v == option),
+            "off",
+        )
         mode_flag = MASSAGE_MODES.get(key)
 
         if mode_flag is None:
             # "off" — exit massage mode
-            await self._coordinator.send_motor_command(CMD_MASSAGE_EXIT)
+            await self._coordinator.send_motor_command_reliable(CMD_MASSAGE_EXIT)
         else:
-            await self._coordinator.send_massage_light_command(
+            await self._coordinator.send_massage_light_command_reliable(
                 cmd_massage_mode(mode_flag)
             )
 

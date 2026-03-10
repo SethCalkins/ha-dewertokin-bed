@@ -8,10 +8,14 @@
 # ║    • Mushroom                                              ║
 # ║    • card-mod                                              ║
 # ║                                                            ║
-# ║  ENTITY IDs: Replace "star254202048066" below with your    ║
-# ║  actual device slug (check Settings → Devices → your bed)  ║
+# ║  ENTITY IDs: Replace "DEVICE" below with your actual       ║
+# ║  device slug (check Settings → Devices → your bed).        ║
+# ║  Example: star254202048066                                 ║
 # ║                                                            ║
 # ╚══════════════════════════════════════════════════════════════╝
+
+# ── Find & Replace: Change "DEVICE" to your device slug ──────
+# e.g.  :%s/DEVICE/star254202048066/g
 
 type: custom:stack-in-card
 mode: vertical
@@ -33,22 +37,32 @@ card_mod:
 cards:
 
   # ═══════════════════════════════════════════════
-  #  HEADER
+  #  HEADER + CONNECTION STATUS
   # ═══════════════════════════════════════════════
 
   - type: custom:button-card
+    entity: binary_sensor.DEVICE_connected
+    show_entity_picture: false
+    show_state: false
     name: Bed Control
     icon: mdi:bed-king-outline
     tap_action:
       action: none
+    custom_fields:
+      status: |
+        [[[
+          if (entity && entity.state === 'on')
+            return '<span style="color:#34d399;">● Connected</span>';
+          return '<span style="color:rgba(255,255,255,0.25);">● Disconnected</span>';
+        ]]]
     styles:
       card:
         - background: transparent
         - box-shadow: none
-        - padding: 16px 0 4px 0
+        - padding: 16px 8px 4px
       grid:
-        - grid-template-areas: '"i" "n"'
-        - grid-template-rows: 1fr min-content
+        - grid-template-areas: '"i" "n" "status"'
+        - grid-template-rows: 1fr min-content min-content
       icon:
         - color: rgba(160,180,255,0.5)
         - width: 40px
@@ -58,6 +72,122 @@ cards:
         - font-weight: 500
         - color: rgba(255,255,255,0.85)
         - letter-spacing: 0.5px
+      custom_fields:
+        status:
+          - font-size: 10px
+          - margin-top: 4px
+          - letter-spacing: 0.5px
+
+  # ═══════════════════════════════════════════════
+  #  BED VISUALIZATION (CSS side-profile)
+  #  Head/Foot angles react to position entities
+  # ═══════════════════════════════════════════════
+
+  - type: custom:button-card
+    entity: number.DEVICE_head_position
+    triggers_update:
+      - number.DEVICE_head_position
+      - number.DEVICE_foot_position
+      - number.DEVICE_core_position
+      - binary_sensor.DEVICE_moving
+    show_name: false
+    show_icon: false
+    show_state: false
+    tap_action:
+      action: none
+    custom_fields:
+      bed: |
+        [[[
+          const head = states['number.DEVICE_head_position']
+            ? parseFloat(states['number.DEVICE_head_position'].state) : 0;
+          const foot = states['number.DEVICE_foot_position']
+            ? parseFloat(states['number.DEVICE_foot_position'].state) : 0;
+          const core = states['number.DEVICE_core_position']
+            ? parseFloat(states['number.DEVICE_core_position'].state) : 0;
+          const moving = states['binary_sensor.DEVICE_moving']
+            ? states['binary_sensor.DEVICE_moving'].state === 'on' : false;
+
+          // Map 0-100 → rotation angles (head: 0-45°, foot: 0-35°, core: 0-10°)
+          const headAngle = (head / 100) * -45;
+          const footAngle = (foot / 100) * 30;
+          const coreHeight = (core / 100) * 8;
+          const glow = moving ? 'filter: drop-shadow(0 0 8px rgba(100,160,255,0.5));' : '';
+
+          return `
+            <div style="
+              display: flex; align-items: flex-end; justify-content: center;
+              height: 100px; padding: 0 20px; ${glow}
+              transition: filter 0.5s ease;
+            ">
+              <svg viewBox="0 0 280 80" style="width:100%; max-width:320px; overflow:visible;">
+                <!-- Base/Frame -->
+                <rect x="10" y="62" width="260" height="6" rx="3"
+                  fill="rgba(255,255,255,0.08)" />
+                <!-- Legs -->
+                <rect x="24" y="68" width="4" height="10" rx="2"
+                  fill="rgba(255,255,255,0.1)" />
+                <rect x="252" y="68" width="4" height="10" rx="2"
+                  fill="rgba(255,255,255,0.1)" />
+
+                <!-- Core/middle section (lifts) -->
+                <g transform="translate(0, ${-coreHeight})"
+                   style="transition: transform 0.6s ease;">
+                  <!-- Mattress base -->
+                  <rect x="30" y="46" width="220" height="16" rx="4"
+                    fill="rgba(100,160,255,0.08)"
+                    stroke="rgba(100,160,255,0.15)" stroke-width="0.5" />
+
+                  <!-- Head section (pivots from foot-end of head segment) -->
+                  <g transform="rotate(${headAngle}, 120, 54)"
+                     style="transition: transform 0.6s ease;">
+                    <rect x="30" y="42" width="90" height="12" rx="4"
+                      fill="rgba(100,160,255,0.18)"
+                      stroke="rgba(100,160,255,0.3)" stroke-width="0.5" />
+                    <!-- Pillow -->
+                    <rect x="36" y="36" width="40" height="8" rx="4"
+                      fill="rgba(100,160,255,0.12)"
+                      stroke="rgba(100,160,255,0.2)" stroke-width="0.5" />
+                  </g>
+
+                  <!-- Foot section (pivots from head-end of foot segment) -->
+                  <g transform="rotate(${footAngle}, 160, 54)"
+                     style="transition: transform 0.6s ease;">
+                    <rect x="160" y="42" width="90" height="12" rx="4"
+                      fill="rgba(100,160,255,0.18)"
+                      stroke="rgba(100,160,255,0.3)" stroke-width="0.5" />
+                  </g>
+                </g>
+
+                <!-- Position labels -->
+                <text x="70" y="18" text-anchor="middle"
+                  font-size="9" fill="rgba(255,255,255,0.35)"
+                  font-family="sans-serif">
+                  Head ${Math.round(head)}%
+                </text>
+                <text x="140" y="18" text-anchor="middle"
+                  font-size="9" fill="rgba(255,255,255,0.25)"
+                  font-family="sans-serif">
+                  Core ${Math.round(core)}%
+                </text>
+                <text x="210" y="18" text-anchor="middle"
+                  font-size="9" fill="rgba(255,255,255,0.35)"
+                  font-family="sans-serif">
+                  Foot ${Math.round(foot)}%
+                </text>
+              </svg>
+            </div>`;
+        ]]]
+    styles:
+      card:
+        - background: rgba(255,255,255,0.02)
+        - border-radius: 18px
+        - border: 1px solid rgba(255,255,255,0.04)
+        - margin: 4px 4px 0
+        - padding: 8px 0
+        - box-shadow: none
+      custom_fields:
+        bed:
+          - width: 100%
 
   # ═══════════════════════════════════════════════
   #  PRESETS
@@ -91,17 +221,15 @@ cards:
           padding: 0 4px;
         }
     cards:
-
-      # — Flat —
       - type: custom:button-card
-        entity: button.star254202048066_flat
+        entity: button.DEVICE_flat
         icon: mdi:bed-outline
         name: Flat
         show_state: false
         tap_action:
           action: toggle
           haptic: medium
-        styles:
+        styles: &preset_style
           card:
             - background: rgba(255,255,255,0.04)
             - border-radius: 16px
@@ -117,108 +245,48 @@ cards:
             - margin-top: 8px
             - font-weight: 500
 
-      # — Zero Gravity —
       - type: custom:button-card
-        entity: button.star254202048066_zero_gravity
+        entity: button.DEVICE_zero_gravity
         icon: mdi:yoga
         name: Zero-G
         show_state: false
         tap_action:
           action: toggle
           haptic: medium
-        styles:
-          card:
-            - background: rgba(255,255,255,0.04)
-            - border-radius: 16px
-            - padding: 16px 4px 12px
-            - border: 1px solid rgba(255,255,255,0.06)
-            - transition: all 0.3s ease
-          icon:
-            - color: rgba(255,255,255,0.55)
-            - width: 26px
-          name:
-            - font-size: 9.5px
-            - color: rgba(255,255,255,0.35)
-            - margin-top: 8px
-            - font-weight: 500
+        styles: *preset_style
 
-      # — Relax —
       - type: custom:button-card
-        entity: button.star254202048066_relax
+        entity: button.DEVICE_relax
         icon: mdi:sofa-outline
         name: Relax
         show_state: false
         tap_action:
           action: toggle
           haptic: medium
-        styles:
-          card:
-            - background: rgba(255,255,255,0.04)
-            - border-radius: 16px
-            - padding: 16px 4px 12px
-            - border: 1px solid rgba(255,255,255,0.06)
-            - transition: all 0.3s ease
-          icon:
-            - color: rgba(255,255,255,0.55)
-            - width: 26px
-          name:
-            - font-size: 9.5px
-            - color: rgba(255,255,255,0.35)
-            - margin-top: 8px
-            - font-weight: 500
+        styles: *preset_style
 
-      # — Ascent —
       - type: custom:button-card
-        entity: button.star254202048066_ascent
+        entity: button.DEVICE_ascent
         icon: mdi:seat-recline-extra
         name: Ascent
         show_state: false
         tap_action:
           action: toggle
           haptic: medium
-        styles:
-          card:
-            - background: rgba(255,255,255,0.04)
-            - border-radius: 16px
-            - padding: 16px 4px 12px
-            - border: 1px solid rgba(255,255,255,0.06)
-            - transition: all 0.3s ease
-          icon:
-            - color: rgba(255,255,255,0.55)
-            - width: 26px
-          name:
-            - font-size: 9.5px
-            - color: rgba(255,255,255,0.35)
-            - margin-top: 8px
-            - font-weight: 500
+        styles: *preset_style
 
-      # — Anti Snore —
       - type: custom:button-card
-        entity: button.star254202048066_anti_snore
+        entity: button.DEVICE_anti_snore
         icon: mdi:sleep
         name: Snore
         show_state: false
         tap_action:
           action: toggle
           haptic: medium
-        styles:
-          card:
-            - background: rgba(255,255,255,0.04)
-            - border-radius: 16px
-            - padding: 16px 4px 12px
-            - border: 1px solid rgba(255,255,255,0.06)
-            - transition: all 0.3s ease
-          icon:
-            - color: rgba(255,255,255,0.55)
-            - width: 26px
-          name:
-            - font-size: 9.5px
-            - color: rgba(255,255,255,0.35)
-            - margin-top: 8px
-            - font-weight: 500
+        styles: *preset_style
 
   # ═══════════════════════════════════════════════
-  #  POSITION
+  #  POSITION SLIDERS
   # ═══════════════════════════════════════════════
 
   - type: custom:button-card
@@ -250,15 +318,135 @@ cards:
           --paper-item-icon-color: rgba(100,160,255,0.6);
         }
     entities:
-      - entity: number.star254202048066_head_position
+      - entity: number.DEVICE_head_position
         name: Head
         icon: mdi:arrow-up-bold
-      - entity: number.star254202048066_foot_position
+      - entity: number.DEVICE_foot_position
         name: Foot
         icon: mdi:arrow-down-bold
-      - entity: number.star254202048066_core_position
+      - entity: number.DEVICE_core_position
         name: Core
         icon: mdi:human-male-height-variant
+
+  # ═══════════════════════════════════════════════
+  #  MEMORY POSITIONS
+  # ═══════════════════════════════════════════════
+
+  - type: custom:button-card
+    name: MEMORY
+    tap_action:
+      action: none
+    styles:
+      card:
+        - background: transparent
+        - box-shadow: none
+        - padding: 24px 16px 6px 16px
+      name:
+        - font-size: 10px
+        - font-weight: 600
+        - color: rgba(255,255,255,0.2)
+        - letter-spacing: 3px
+        - text-transform: uppercase
+        - text-align: left
+
+  - type: grid
+    columns: 4
+    square: false
+    card_mod:
+      style: |
+        ha-card {
+          background: transparent;
+          box-shadow: none;
+          padding: 0 4px;
+        }
+    cards:
+      - type: custom:button-card
+        entity: button.DEVICE_memory_1
+        icon: mdi:numeric-1-circle-outline
+        name: Mem 1
+        show_state: false
+        tap_action:
+          action: toggle
+          haptic: medium
+        hold_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.DEVICE_save_memory_1
+          haptic: heavy
+          confirmation:
+            text: Save current position to Memory 1?
+        styles: &memory_style
+          card:
+            - background: rgba(255,255,255,0.04)
+            - border-radius: 16px
+            - padding: 16px 4px 12px
+            - border: 1px solid rgba(255,255,255,0.06)
+            - transition: all 0.3s ease
+          icon:
+            - color: rgba(100,160,255,0.55)
+            - width: 26px
+          name:
+            - font-size: 9.5px
+            - color: rgba(255,255,255,0.35)
+            - margin-top: 8px
+            - font-weight: 500
+
+      - type: custom:button-card
+        entity: button.DEVICE_memory_2
+        icon: mdi:numeric-2-circle-outline
+        name: Mem 2
+        show_state: false
+        tap_action:
+          action: toggle
+          haptic: medium
+        hold_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.DEVICE_save_memory_2
+          haptic: heavy
+          confirmation:
+            text: Save current position to Memory 2?
+        styles: *memory_style
+
+      - type: custom:button-card
+        entity: button.DEVICE_memory_3
+        icon: mdi:numeric-3-circle-outline
+        name: Mem 3
+        show_state: false
+        tap_action:
+          action: toggle
+          haptic: medium
+        hold_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.DEVICE_save_memory_3
+          haptic: heavy
+          confirmation:
+            text: Save current position to Memory 3?
+        styles: *memory_style
+
+      - type: custom:button-card
+        entity: button.DEVICE_memory_4
+        icon: mdi:numeric-4-circle-outline
+        name: Mem 4
+        show_state: false
+        tap_action:
+          action: toggle
+          haptic: medium
+        hold_action:
+          action: call-service
+          service: button.press
+          service_data:
+            entity_id: button.DEVICE_save_memory_4
+          haptic: heavy
+          confirmation:
+            text: Save current position to Memory 4?
+        styles: *memory_style
+
+  # (tap = recall, hold = save with confirmation)
 
   # ═══════════════════════════════════════════════
   #  LIGHTING
@@ -282,7 +470,7 @@ cards:
         - text-align: left
 
   - type: custom:mushroom-light-card
-    entity: light.star254202048066_bed_light
+    entity: light.DEVICE_bed_light
     name: Bed Light
     icon: mdi:led-strip-variant
     show_brightness_control: true
@@ -298,7 +486,7 @@ cards:
           margin: 0 4px;
         }
 
-  # — Color Quick-Pick Dots —
+  # Color quick-pick dots (matches the 7 hardware colors)
   - type: grid
     columns: 7
     square: false
@@ -310,19 +498,18 @@ cards:
           padding: 8px 12px 0;
         }
     cards:
-
       - type: custom:button-card
         icon: mdi:circle
         name: " "
         show_state: false
-        tap_action:
+        tap_action: &color_tap
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [255, 255, 255]
           haptic: light
-        styles:
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [255, 255, 255]
+        styles: &color_dot_style
           card:
             - background: transparent
             - box-shadow: none
@@ -340,10 +527,10 @@ cards:
         tap_action:
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [255, 0, 0]
           haptic: light
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [255, 0, 0]
         styles:
           card:
             - background: transparent
@@ -362,10 +549,10 @@ cards:
         tap_action:
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [255, 165, 0]
           haptic: light
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [255, 165, 0]
         styles:
           card:
             - background: transparent
@@ -384,10 +571,10 @@ cards:
         tap_action:
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [255, 255, 0]
           haptic: light
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [255, 255, 0]
         styles:
           card:
             - background: transparent
@@ -406,10 +593,10 @@ cards:
         tap_action:
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [0, 255, 0]
           haptic: light
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [0, 255, 0]
         styles:
           card:
             - background: transparent
@@ -428,10 +615,10 @@ cards:
         tap_action:
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [0, 0, 255]
           haptic: light
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [0, 0, 255]
         styles:
           card:
             - background: transparent
@@ -450,10 +637,10 @@ cards:
         tap_action:
           action: call-service
           service: light.turn_on
-          service_data:
-            entity_id: light.star254202048066_bed_light
-            rgb_color: [128, 0, 128]
           haptic: light
+          service_data:
+            entity_id: light.DEVICE_bed_light
+            rgb_color: [128, 0, 128]
         styles:
           card:
             - background: transparent
@@ -464,6 +651,24 @@ cards:
             - color: rgb(170,60,210)
             - width: 22px
             - filter: drop-shadow(0 0 6px rgba(170,60,210,0.5))
+
+  # — Motion Sensor Toggle —
+  - type: custom:mushroom-entity-card
+    entity: switch.DEVICE_motion_sensor
+    name: Motion Sensor
+    icon: mdi:motion-sensor
+    layout: horizontal
+    tap_action:
+      action: toggle
+      haptic: medium
+    card_mod:
+      style: |
+        ha-card {
+          background: rgba(255,255,255,0.025);
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.04);
+          margin: 8px 4px 0;
+        }
 
   # ═══════════════════════════════════════════════
   #  MASSAGE
@@ -486,7 +691,7 @@ cards:
         - text-transform: uppercase
         - text-align: left
 
-  # — Massage Power + Mode Buttons —
+  # Massage power + mode buttons
   - type: grid
     columns: 5
     square: false
@@ -501,7 +706,7 @@ cards:
 
       # Power toggle
       - type: custom:button-card
-        entity: switch.star254202048066_massage
+        entity: switch.DEVICE_massage
         icon: mdi:power
         name: Power
         show_state: false
@@ -528,7 +733,7 @@ cards:
                 - color: rgba(255,255,255,0.35)
               name:
                 - color: rgba(255,255,255,0.3)
-        styles:
+        styles: &massage_btn_style
           card:
             - border-radius: 16px
             - padding: 14px 4px 10px
@@ -542,118 +747,24 @@ cards:
             - margin-top: 6px
             - font-weight: 500
 
-      # Steady
+      # Wave 1
       - type: custom:button-card
-        entity: select.star254202048066_massage_mode
-        icon: mdi:sine-wave
-        name: Steady
-        show_state: false
-        tap_action:
-          action: call-service
-          service: select.select_option
-          service_data:
-            entity_id: select.star254202048066_massage_mode
-            option: Steady
-          haptic: medium
-        state:
-          - operator: template
-            value: |
-              [[[ return entity.state === 'Steady' ]]]
-            styles:
-              card:
-                - background: rgba(167,139,250,0.12)
-                - border-color: rgba(167,139,250,0.25)
-              icon:
-                - color: "#a78bfa"
-              name:
-                - color: rgba(167,139,250,0.8)
-          - operator: default
-            styles:
-              card:
-                - background: rgba(255,255,255,0.04)
-                - border-color: rgba(255,255,255,0.06)
-              icon:
-                - color: rgba(255,255,255,0.4)
-              name:
-                - color: rgba(255,255,255,0.3)
-        styles:
-          card:
-            - border-radius: 16px
-            - padding: 14px 4px 10px
-            - border: 1px solid
-            - transition: all 0.3s ease
-          icon:
-            - width: 24px
-          name:
-            - font-size: 9.5px
-            - margin-top: 6px
-            - font-weight: 500
-
-      # Pulse
-      - type: custom:button-card
-        entity: select.star254202048066_massage_mode
-        icon: mdi:pulse
-        name: Pulse
-        show_state: false
-        tap_action:
-          action: call-service
-          service: select.select_option
-          service_data:
-            entity_id: select.star254202048066_massage_mode
-            option: Pulse
-          haptic: medium
-        state:
-          - operator: template
-            value: |
-              [[[ return entity.state === 'Pulse' ]]]
-            styles:
-              card:
-                - background: rgba(167,139,250,0.12)
-                - border-color: rgba(167,139,250,0.25)
-              icon:
-                - color: "#a78bfa"
-              name:
-                - color: rgba(167,139,250,0.8)
-          - operator: default
-            styles:
-              card:
-                - background: rgba(255,255,255,0.04)
-                - border-color: rgba(255,255,255,0.06)
-              icon:
-                - color: rgba(255,255,255,0.4)
-              name:
-                - color: rgba(255,255,255,0.3)
-        styles:
-          card:
-            - border-radius: 16px
-            - padding: 14px 4px 10px
-            - border: 1px solid
-            - transition: all 0.3s ease
-          icon:
-            - width: 24px
-          name:
-            - font-size: 9.5px
-            - margin-top: 6px
-            - font-weight: 500
-
-      # Wave
-      - type: custom:button-card
-        entity: select.star254202048066_massage_mode
+        entity: select.DEVICE_massage_mode
         icon: mdi:wave
-        name: Wave
+        name: Wave 1
         show_state: false
         tap_action:
           action: call-service
           service: select.select_option
           service_data:
-            entity_id: select.star254202048066_massage_mode
-            option: Wave
+            entity_id: select.DEVICE_massage_mode
+            option: "Wave 1"
           haptic: medium
         state:
           - operator: template
             value: |
-              [[[ return entity.state === 'Wave' ]]]
-            styles:
+              [[[ return entity.state === 'Wave 1' ]]]
+            styles: &massage_active
               card:
                 - background: rgba(167,139,250,0.12)
                 - border-color: rgba(167,139,250,0.25)
@@ -662,7 +773,7 @@ cards:
               name:
                 - color: rgba(167,139,250,0.8)
           - operator: default
-            styles:
+            styles: &massage_inactive
               card:
                 - background: rgba(255,255,255,0.04)
                 - border-color: rgba(255,255,255,0.06)
@@ -670,22 +781,55 @@ cards:
                 - color: rgba(255,255,255,0.4)
               name:
                 - color: rgba(255,255,255,0.3)
-        styles:
-          card:
-            - border-radius: 16px
-            - padding: 14px 4px 10px
-            - border: 1px solid
-            - transition: all 0.3s ease
-          icon:
-            - width: 24px
-          name:
-            - font-size: 9.5px
-            - margin-top: 6px
-            - font-weight: 500
+        styles: *massage_btn_style
+
+      # Wave 2
+      - type: custom:button-card
+        entity: select.DEVICE_massage_mode
+        icon: mdi:pulse
+        name: Wave 2
+        show_state: false
+        tap_action:
+          action: call-service
+          service: select.select_option
+          service_data:
+            entity_id: select.DEVICE_massage_mode
+            option: "Wave 2"
+          haptic: medium
+        state:
+          - operator: template
+            value: |
+              [[[ return entity.state === 'Wave 2' ]]]
+            styles: *massage_active
+          - operator: default
+            styles: *massage_inactive
+        styles: *massage_btn_style
+
+      # Wave 3
+      - type: custom:button-card
+        entity: select.DEVICE_massage_mode
+        icon: mdi:sine-wave
+        name: Wave 3
+        show_state: false
+        tap_action:
+          action: call-service
+          service: select.select_option
+          service_data:
+            entity_id: select.DEVICE_massage_mode
+            option: "Wave 3"
+          haptic: medium
+        state:
+          - operator: template
+            value: |
+              [[[ return entity.state === 'Wave 3' ]]]
+            styles: *massage_active
+          - operator: default
+            styles: *massage_inactive
+        styles: *massage_btn_style
 
       # Off
       - type: custom:button-card
-        entity: select.star254202048066_massage_mode
+        entity: select.DEVICE_massage_mode
         icon: mdi:close-circle-outline
         name: "Off"
         show_state: false
@@ -693,7 +837,7 @@ cards:
           action: call-service
           service: select.select_option
           service_data:
-            entity_id: select.star254202048066_massage_mode
+            entity_id: select.DEVICE_massage_mode
             option: "Off"
           haptic: medium
         state:
@@ -709,28 +853,10 @@ cards:
               name:
                 - color: rgba(255,255,255,0.4)
           - operator: default
-            styles:
-              card:
-                - background: rgba(255,255,255,0.04)
-                - border-color: rgba(255,255,255,0.06)
-              icon:
-                - color: rgba(255,255,255,0.25)
-              name:
-                - color: rgba(255,255,255,0.2)
-        styles:
-          card:
-            - border-radius: 16px
-            - padding: 14px 4px 10px
-            - border: 1px solid
-            - transition: all 0.3s ease
-          icon:
-            - width: 24px
-          name:
-            - font-size: 9.5px
-            - margin-top: 6px
-            - font-weight: 500
+            styles: *massage_inactive
+        styles: *massage_btn_style
 
-  # — Massage Sliders —
+  # Massage + Vibration sliders
   - type: entities
     card_mod:
       style: |
@@ -743,12 +869,12 @@ cards:
           --paper-item-icon-color: rgba(167,139,250,0.5);
         }
     entities:
-      - entity: number.star254202048066_massage_intensity
+      - entity: number.DEVICE_massage_intensity
         name: Intensity
         icon: mdi:sine-wave
-      - entity: number.star254202048066_vibration_head
-        name: Vib Head
+      - entity: number.DEVICE_vibration_head
+        name: Vibration Head
         icon: mdi:vibrate
-      - entity: number.star254202048066_vibration_foot
-        name: Vib Foot
+      - entity: number.DEVICE_vibration_foot
+        name: Vibration Foot
         icon: mdi:vibrate

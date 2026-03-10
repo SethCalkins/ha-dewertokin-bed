@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 
 from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
@@ -12,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     CMD_ZONE_SYNC,
+    COMMAND_DELAY,
     DOMAIN,
     MAX_VIBRATION_LEVEL,
     ZONE_CORE,
@@ -69,14 +71,43 @@ class DewertOkinPositionNumber(NumberEntity):
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": entry.title,
             "manufacturer": "DewertOkin",
-            "model": "FP2901",
+            "model": "BOX25 Star",
         }
+        self._unregister_listener: Callable[[], None] | None = None
+
+    async def async_added_to_hass(self) -> None:
+        """Register for status updates when added to HA."""
+        self._unregister_listener = self._coordinator.register_status_listener(
+            self._on_status_update
+        )
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Unregister status listener when removed."""
+        if self._unregister_listener:
+            self._unregister_listener()
+
+    def _on_status_update(self) -> None:
+        """Update position from bed notification data."""
+        status = self._coordinator.status
+        new_value = None
+        if self._zone_name == "head" and status.head_position is not None:
+            new_value = status.head_position
+        elif self._zone_name == "foot" and status.foot_position is not None:
+            new_value = status.foot_position
+        elif self._zone_name == "core" and status.core_position is not None:
+            new_value = status.core_position
+
+        if new_value is not None and new_value != self._attr_native_value:
+            self._attr_native_value = new_value
+            self.async_write_ha_state()
 
     async def async_set_native_value(self, value: float) -> None:
         """Move zone to target position."""
         pos = int(value)
-        await self._coordinator.send_motor_command(cmd_position(self._zone_id, pos))
-        await asyncio.sleep(0.05)
+        await self._coordinator.send_motor_command_reliable(
+            cmd_position(self._zone_id, pos)
+        )
+        await asyncio.sleep(COMMAND_DELAY)
         await self._coordinator.send_motor_command(CMD_ZONE_SYNC)
         self._attr_native_value = pos
         self.async_write_ha_state()
@@ -107,7 +138,7 @@ class DewertOkinVibrationNumber(NumberEntity):
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": entry.title,
             "manufacturer": "DewertOkin",
-            "model": "FP2901",
+            "model": "BOX25 Star",
         }
 
     async def async_set_native_value(self, value: float) -> None:
@@ -118,7 +149,7 @@ class DewertOkinVibrationNumber(NumberEntity):
         else:
             self._coordinator.vibration_foot = level
 
-        await self._coordinator.send_massage_light_command(
+        await self._coordinator.send_massage_light_command_reliable(
             cmd_vibration(
                 self._coordinator.vibration_head,
                 self._coordinator.vibration_foot,
@@ -151,14 +182,14 @@ class DewertOkinMassageIntensityNumber(NumberEntity):
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": entry.title,
             "manufacturer": "DewertOkin",
-            "model": "FP2901",
+            "model": "BOX25 Star",
         }
 
     async def async_set_native_value(self, value: float) -> None:
         """Set massage intensity. UI 1-7 maps to protocol 2-8."""
         ui_level = int(value)
         protocol_level = ui_level + 1  # UI 1 -> protocol 2, UI 7 -> protocol 8
-        await self._coordinator.send_massage_light_command(
+        await self._coordinator.send_massage_light_command_reliable(
             cmd_vibration(protocol_level, protocol_level)
         )
         self._attr_native_value = ui_level

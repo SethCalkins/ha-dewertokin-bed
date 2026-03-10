@@ -49,7 +49,6 @@ def _nearest_color(r: int, g: int, b: int) -> tuple[str, int]:
 
 def _ha_brightness_to_level(brightness: int) -> int:
     """Convert HA brightness (1-255) to bed level (1-6)."""
-    # Map 1-255 linearly to 1-6
     level = round(brightness / 255 * MAX_BRIGHTNESS_LEVEL)
     return max(MIN_BRIGHTNESS_LEVEL, min(MAX_BRIGHTNESS_LEVEL, level))
 
@@ -85,8 +84,8 @@ class DewertOkinBedLight(LightEntity):
         self._attr_unique_id = f"{entry.entry_id}_light"
         self._attr_name = "Bed Light"
         self._attr_is_on = False
-        self._attr_brightness = 255  # Default max
-        self._attr_rgb_color = (255, 255, 255)  # Default white
+        self._attr_brightness = 255
+        self._attr_rgb_color = (255, 255, 255)
         self._current_color_name = "white"
         self._current_color_value = 0x01
         self._current_brightness_level = MAX_BRIGHTNESS_LEVEL
@@ -94,7 +93,7 @@ class DewertOkinBedLight(LightEntity):
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": entry.title,
             "manufacturer": "DewertOkin",
-            "model": "FP2901",
+            "model": "BOX25 Star",
         }
 
     async def async_turn_on(self, **kwargs: Any) -> None:
@@ -114,11 +113,11 @@ class DewertOkinBedLight(LightEntity):
             )
 
         # Send color command (turns light on)
-        await self._coordinator.send_massage_light_command(
+        await self._coordinator.send_massage_light_command_reliable(
             cmd_light_color(self._current_color_value)
         )
 
-        # Send brightness if not max (max is default on turn-on)
+        # Send brightness if not max
         if self._current_brightness_level < MAX_BRIGHTNESS_LEVEL:
             await self._coordinator.send_massage_light_command(
                 cmd_light_brightness(self._current_brightness_level)
@@ -129,6 +128,8 @@ class DewertOkinBedLight(LightEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light."""
-        await self._coordinator.send_massage_light_command(cmd_light_color(0))
+        await self._coordinator.send_massage_light_command_reliable(
+            cmd_light_color(0)
+        )
         self._attr_is_on = False
         self.async_write_ha_state()
