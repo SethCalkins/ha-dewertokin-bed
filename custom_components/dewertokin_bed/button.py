@@ -141,4 +141,4 @@ class DewertOkinMemoryStoreButton(ButtonEntity):
     async def async_press(self) -> None:
         """Store current position to memory slot."""
         cmd = MEMORY_STORE[self._slot]
-        await self._coordinator.send_motor_command_reliable(cmd)
+        await self._coordinator.send_preset_command(cmd)

@@ -37,50 +37,57 @@ card_mod:
 cards:
 
   # ═══════════════════════════════════════════════
-  #  HEADER + CONNECTION STATUS
+  #  HEADER — icon + title left, connection dot right
   # ═══════════════════════════════════════════════
 
   - type: custom:button-card
     entity: binary_sensor.DEVICE_connected
     show_entity_picture: false
     show_state: false
-    name: Bed Control
-    icon: mdi:bed-king-outline
+    show_name: false
+    show_icon: false
     tap_action:
       action: none
     custom_fields:
-      status: |
+      header: |
         [[[
-          if (entity && entity.state === 'on')
-            return '<span style="color:#34d399;">● Connected</span>';
-          return '<span style="color:rgba(255,255,255,0.25);">● Disconnected</span>';
+          const on = entity && entity.state === 'on';
+          const dotColor = on ? '#34d399' : 'rgba(255,255,255,0.2)';
+          return `
+            <div style="
+              display:flex; align-items:center; justify-content:space-between;
+              width:100%; padding:0 4px;
+            ">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <ha-icon icon="mdi:bed-king-outline" style="
+                  --mdc-icon-size:28px; color:rgba(100,160,255,0.5);
+                "></ha-icon>
+                <span style="
+                  font-size:20px; font-weight:500; color:rgba(255,255,255,0.85);
+                  letter-spacing:0.5px;
+                ">Adjustable Bed</span>
+              </div>
+              <div style="
+                width:12px; height:12px; border-radius:50%;
+                background:${dotColor};
+                box-shadow: 0 0 ${on ? '8px' : '0'} ${dotColor};
+                transition: all 0.4s ease;
+              "></div>
+            </div>`;
         ]]]
     styles:
       card:
         - background: transparent
         - box-shadow: none
-        - padding: 16px 8px 4px
-      grid:
-        - grid-template-areas: '"i" "n" "status"'
-        - grid-template-rows: 1fr min-content min-content
-      icon:
-        - color: rgba(160,180,255,0.5)
-        - width: 40px
-        - margin-bottom: 8px
-      name:
-        - font-size: 20px
-        - font-weight: 500
-        - color: rgba(255,255,255,0.85)
-        - letter-spacing: 0.5px
+        - padding: 16px 12px 8px
       custom_fields:
-        status:
-          - font-size: 10px
-          - margin-top: 4px
-          - letter-spacing: 0.5px
+        header:
+          - width: 100%
 
   # ═══════════════════════════════════════════════
-  #  BED VISUALIZATION (CSS side-profile)
-  #  Head/Foot angles react to position entities
+  #  BED VISUALIZATION — SVG side-profile
+  #  Segments pivot at joints; head lifts left,
+  #  foot lifts right, core raises whole platform
   # ═══════════════════════════════════════════════
 
   - type: custom:button-card
@@ -107,75 +114,93 @@ cards:
           const moving = states['binary_sensor.DEVICE_moving']
             ? states['binary_sensor.DEVICE_moving'].state === 'on' : false;
 
-          // Map 0-100 → rotation angles (head: 0-45°, foot: 0-35°, core: 0-10°)
-          const headAngle = (head / 100) * -45;
-          const footAngle = (foot / 100) * 30;
-          const coreHeight = (core / 100) * 8;
-          const glow = moving ? 'filter: drop-shadow(0 0 8px rgba(100,160,255,0.5));' : '';
+          // Angles: head 0→-50°, foot 0→35°
+          const hA = (head / 100) * -50;
+          const fA = (foot / 100) * 35;
+          const cY = (core / 100) * 12;
+          const pulse = moving
+            ? 'animation: bedPulse 2s ease-in-out infinite;' : '';
+
+          // Bed color
+          const c = '79,163,221';  // nice bed blue
 
           return `
-            <div style="
-              display: flex; align-items: flex-end; justify-content: center;
-              height: 100px; padding: 0 20px; ${glow}
-              transition: filter 0.5s ease;
-            ">
-              <svg viewBox="0 0 280 80" style="width:100%; max-width:320px; overflow:visible;">
-                <!-- Base/Frame -->
-                <rect x="10" y="62" width="260" height="6" rx="3"
-                  fill="rgba(255,255,255,0.08)" />
-                <!-- Legs -->
-                <rect x="24" y="68" width="4" height="10" rx="2"
-                  fill="rgba(255,255,255,0.1)" />
-                <rect x="252" y="68" width="4" height="10" rx="2"
-                  fill="rgba(255,255,255,0.1)" />
+          <style>
+            @keyframes bedPulse {
+              0%,100% { filter: drop-shadow(0 0 4px rgba(${c},0.3)); }
+              50%     { filter: drop-shadow(0 0 12px rgba(${c},0.6)); }
+            }
+          </style>
+          <div style="
+            display:flex; align-items:flex-end; justify-content:center;
+            height:120px; padding:0 16px; ${pulse}
+          ">
+            <svg viewBox="0 0 300 100" style="width:100%; max-width:340px; overflow:visible;">
+              <defs>
+                <linearGradient id="bedGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(${c},0.9)" />
+                  <stop offset="100%" stop-color="rgba(${c},0.55)" />
+                </linearGradient>
+                <linearGradient id="frameGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(${c},0.5)" />
+                  <stop offset="100%" stop-color="rgba(${c},0.25)" />
+                </linearGradient>
+              </defs>
 
-                <!-- Core/middle section (lifts) -->
-                <g transform="translate(0, ${-coreHeight})"
-                   style="transition: transform 0.6s ease;">
-                  <!-- Mattress base -->
-                  <rect x="30" y="46" width="220" height="16" rx="4"
-                    fill="rgba(100,160,255,0.08)"
-                    stroke="rgba(100,160,255,0.15)" stroke-width="0.5" />
+              <!-- === FRAME (static base) === -->
+              <!-- Legs -->
+              <rect x="32" y="82" width="5" height="14" rx="2"
+                fill="url(#frameGrad)" />
+              <rect x="263" y="82" width="5" height="14" rx="2"
+                fill="url(#frameGrad)" />
+              <!-- Wheels -->
+              <circle cx="34" cy="97" r="3" fill="rgba(${c},0.3)" />
+              <circle cx="266" cy="97" r="3" fill="rgba(${c},0.3)" />
+              <!-- Base rail -->
+              <rect x="28" y="78" width="244" height="6" rx="3"
+                fill="url(#frameGrad)" />
 
-                  <!-- Head section (pivots from foot-end of head segment) -->
-                  <g transform="rotate(${headAngle}, 120, 54)"
-                     style="transition: transform 0.6s ease;">
-                    <rect x="30" y="42" width="90" height="12" rx="4"
-                      fill="rgba(100,160,255,0.18)"
-                      stroke="rgba(100,160,255,0.3)" stroke-width="0.5" />
-                    <!-- Pillow -->
-                    <rect x="36" y="36" width="40" height="8" rx="4"
-                      fill="rgba(100,160,255,0.12)"
-                      stroke="rgba(100,160,255,0.2)" stroke-width="0.5" />
-                  </g>
+              <!-- === MATTRESS PLATFORM (lifts with core) === -->
+              <g transform="translate(0,${-cY})">
+                <!-- Center mattress slab -->
+                <rect x="40" y="58" width="220" height="22" rx="5"
+                  fill="url(#bedGrad)" opacity="0.85" />
 
-                  <!-- Foot section (pivots from head-end of foot segment) -->
-                  <g transform="rotate(${footAngle}, 160, 54)"
-                     style="transition: transform 0.6s ease;">
-                    <rect x="160" y="42" width="90" height="12" rx="4"
-                      fill="rgba(100,160,255,0.18)"
-                      stroke="rgba(100,160,255,0.3)" stroke-width="0.5" />
-                  </g>
+                <!-- Head section — pivots at x=150 (right edge of head zone) -->
+                <g transform="rotate(${hA}, 148, 69)">
+                  <rect x="38" y="52" width="112" height="18" rx="5"
+                    fill="url(#bedGrad)" />
+                  <!-- Pillow -->
+                  <rect x="44" y="43" width="42" height="12" rx="6"
+                    fill="rgba(${c},0.7)"
+                    stroke="rgba(${c},0.9)" stroke-width="0.5" />
                 </g>
 
-                <!-- Position labels -->
-                <text x="70" y="18" text-anchor="middle"
-                  font-size="9" fill="rgba(255,255,255,0.35)"
-                  font-family="sans-serif">
-                  Head ${Math.round(head)}%
-                </text>
-                <text x="140" y="18" text-anchor="middle"
-                  font-size="9" fill="rgba(255,255,255,0.25)"
-                  font-family="sans-serif">
-                  Core ${Math.round(core)}%
-                </text>
-                <text x="210" y="18" text-anchor="middle"
-                  font-size="9" fill="rgba(255,255,255,0.35)"
-                  font-family="sans-serif">
-                  Foot ${Math.round(foot)}%
-                </text>
-              </svg>
-            </div>`;
+                <!-- Foot section — pivots at x=152 (left edge of foot zone) -->
+                <g transform="rotate(${fA}, 152, 69)">
+                  <rect x="150" y="52" width="112" height="18" rx="5"
+                    fill="url(#bedGrad)" />
+                </g>
+              </g>
+
+              <!-- === LABELS === -->
+              <text x="85" y="24" text-anchor="middle"
+                font-size="10" font-weight="500" fill="rgba(255,255,255,0.4)"
+                font-family="system-ui,sans-serif">
+                Head ${Math.round(head)}%
+              </text>
+              <text x="150" y="24" text-anchor="middle"
+                font-size="10" font-weight="500" fill="rgba(255,255,255,0.25)"
+                font-family="system-ui,sans-serif">
+                ${core > 0 ? 'Core ' + Math.round(core) + '%' : ''}
+              </text>
+              <text x="215" y="24" text-anchor="middle"
+                font-size="10" font-weight="500" fill="rgba(255,255,255,0.4)"
+                font-family="system-ui,sans-serif">
+                Foot ${Math.round(foot)}%
+              </text>
+            </svg>
+          </div>`;
         ]]]
     styles:
       card:

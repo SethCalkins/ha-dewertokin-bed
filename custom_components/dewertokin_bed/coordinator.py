@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant, callback
 from .const import (
     CMD_MASSAGE_LIGHT_INIT,
     CMD_MOTOR_INIT,
+    CMD_MOTOR_STOP,
     CMD_WAKE,
     COMMAND_DELAY,
     CONNECT_TIMEOUT,
@@ -428,9 +429,9 @@ class DewertOkinCoordinator:
                         WRITE_CHAR_UUID, preset_cmd, response=False
                     )
                     await asyncio.sleep(COMMAND_DELAY)
-                    # Confirm with stop
+                    # Confirm with motor stop
                     await client.write_gatt_char(
-                        WRITE_CHAR_UUID, CMD_MOTOR_INIT, response=False
+                        WRITE_CHAR_UUID, CMD_MOTOR_STOP, response=False
                     )
                     self._consecutive_failures = 0
                     self._reset_disconnect_timer()

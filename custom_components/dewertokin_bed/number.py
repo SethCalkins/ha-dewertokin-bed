@@ -12,10 +12,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    CMD_MASSAGE_ALL_ADD,
+    CMD_MASSAGE_ALL_REDUCE,
     CMD_ZONE_SYNC,
     COMMAND_DELAY,
     DOMAIN,
+    MAX_MASSAGE_INTENSITY,
     MAX_VIBRATION_LEVEL,
+    MIN_MASSAGE_INTENSITY,
     ZONE_CORE,
     ZONE_FOOT,
     ZONE_HEAD,
@@ -160,11 +164,11 @@ class DewertOkinVibrationNumber(NumberEntity):
 
 
 class DewertOkinMassageIntensityNumber(NumberEntity):
-    """Massage intensity (1-7 maps to protocol 2-8, both zones)."""
+    """Massage intensity (1-7). Uses step commands to reach target level."""
 
     _attr_has_entity_name = True
-    _attr_native_min_value = 1
-    _attr_native_max_value = 7
+    _attr_native_min_value = MIN_MASSAGE_INTENSITY
+    _attr_native_max_value = MAX_MASSAGE_INTENSITY
     _attr_native_step = 1
     _attr_mode = NumberMode.SLIDER
 
@@ -177,7 +181,8 @@ class DewertOkinMassageIntensityNumber(NumberEntity):
         self._attr_unique_id = f"{entry.entry_id}_massage_intensity"
         self._attr_name = "Massage Intensity"
         self._attr_icon = "mdi:sine-wave"
-        self._attr_native_value = 1
+        self._attr_native_value = MIN_MASSAGE_INTENSITY
+        self._current_level = MIN_MASSAGE_INTENSITY
         self._attr_device_info = {
             "identifiers": {(DOMAIN, entry.entry_id)},
             "name": entry.title,
@@ -186,11 +191,23 @@ class DewertOkinMassageIntensityNumber(NumberEntity):
         }
 
     async def async_set_native_value(self, value: float) -> None:
-        """Set massage intensity. UI 1-7 maps to protocol 2-8."""
-        ui_level = int(value)
-        protocol_level = ui_level + 1  # UI 1 -> protocol 2, UI 7 -> protocol 8
-        await self._coordinator.send_massage_light_command_reliable(
-            cmd_vibration(protocol_level, protocol_level)
-        )
-        self._attr_native_value = ui_level
+        """Set massage intensity by stepping from current to target level."""
+        target = max(MIN_MASSAGE_INTENSITY, min(MAX_MASSAGE_INTENSITY, int(value)))
+        diff = target - self._current_level
+
+        if diff > 0:
+            for _ in range(diff):
+                await self._coordinator.send_massage_light_command_reliable(
+                    CMD_MASSAGE_ALL_ADD
+                )
+                await asyncio.sleep(COMMAND_DELAY)
+        elif diff < 0:
+            for _ in range(abs(diff)):
+                await self._coordinator.send_massage_light_command_reliable(
+                    CMD_MASSAGE_ALL_REDUCE
+                )
+                await asyncio.sleep(COMMAND_DELAY)
+
+        self._current_level = target
+        self._attr_native_value = target
         self.async_write_ha_state()
